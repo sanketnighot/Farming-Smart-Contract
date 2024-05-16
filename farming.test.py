@@ -7,11 +7,13 @@ if __name__ == "__main__":
 
     @sp.add_test()
     def test():
+        # Create test scenarios and import the required modules
         sc = sp.test_scenario(
             "FarmingContractTest", [farming_types, sp.utils, farming_contract_module]
         )
-        sc.h1("Farming Contract")
 
+        # Originate the farming contract
+        sc.h1("Farming Contract")
         sc.h2("Originate Farming Contract")
         farming_contract = farming_contract_module.FarmingContract(
             administrator=Address.admin,
@@ -19,5 +21,6 @@ if __name__ == "__main__":
         )
         sc += farming_contract
 
+        # Log the initial storage
         sc.h2("Initial Storage")
         sc.show(farming_contract.data)

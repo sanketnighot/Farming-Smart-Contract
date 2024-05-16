@@ -3,12 +3,14 @@ import smartpy as sp  # type: ignore
 
 @sp.module
 def farming_types():
+    # Administration panel bigmap value type
     administration_panel_type: type = sp.record(
         administrator=sp.address,
         pendingAdministrator=sp.option[sp.address],
         paused=sp.bool,
     )
 
+    # Farm bigmap value type
     farm_type: type = sp.record(
         pool_token=sp.record(
             address=sp.address,
@@ -32,7 +34,10 @@ def farming_types():
         owner=sp.address,
     )
 
+    # Ledger bigmap key type
     ledger_key_type: type = sp.pair[sp.nat, sp.address]
+
+    # Ledger bigmap value type
     ledger_value_type: type = sp.record(
         amount=sp.nat, reward_debt=sp.nat, lock_end_time=sp.timestamp
     )

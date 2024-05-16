@@ -7,6 +7,7 @@ from farming_contract_types import farming_types  # Contract variable types
 def farming_contract_module():
 
     class FarmingContract(sp.Contract):
+        # intial storage
         def __init__(
             self,
             administrator,
@@ -23,18 +24,23 @@ def farming_contract_module():
                 ),
                 farming_types.administration_panel_type,
             )
+            # Farms big_map to store all the farms data
             self.data.farms = sp.cast(
                 sp.big_map(), sp.big_map[sp.nat, farming_types.farm_type]
             )
+            # Total farms count
             self.data.next_farm_id = sp.cast(0, sp.nat)
+            # Ldeger to store all the user data
             self.data.ledger = sp.cast(
                 sp.big_map(),
                 sp.big_map[
                     farming_types.ledger_key_type, farming_types.ledger_value_type
                 ],
             )
+            # Vaults to store all the user assets data
             self.data.vaults = sp.cast(sp.big_map(), sp.big_map[sp.address, sp.address])
 
+        # Check if the sender is the administrator
         @sp.private(with_storage="read-only")
         def _isAdmin(self):
             assert sp.sender == self.data.administration_panel.administrator, "NotAdmin"
