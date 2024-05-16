@@ -23,6 +23,17 @@ def farming_contract_module():
                 ),
                 farming_types.administration_panel_type,
             )
+            self.data.farms = sp.cast(
+                sp.big_map(), sp.big_map[sp.nat, farming_types.farm_type]
+            )
+            self.data.next_farm_id = sp.cast(0, sp.nat)
+            self.data.ledger = sp.cast(
+                sp.big_map(),
+                sp.big_map[
+                    farming_types.ledger_key_type, farming_types.ledger_value_type
+                ],
+            )
+            self.data.vaults = sp.cast(sp.big_map(), sp.big_map[sp.address, sp.address])
 
         @sp.private(with_storage="read-only")
         def _isAdmin(self):
