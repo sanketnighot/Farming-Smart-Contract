@@ -68,3 +68,104 @@ def farming_contract_module():
                 self.data.administration_panel.pendingAdministrator.unwrap_some()
             )
             self.data.administration_panel.pendingAdministrator = None
+
+        # Toggle pause contract
+        @sp.entrypoint
+        def togglePause(self):
+            self._isAdmin()
+            if self.data.administration_panel.paused:
+                self.data.administration_panel.paused = False
+            else:
+                self.data.administration_panel.paused = True
+
+        # Transfer FA2 token function
+        @sp.private(with_storage="read-write", with_operations=True)
+        def transfer_fa2_token(self, params):
+            sp.cast(params, farming_types.transfer_fa2_token_params_type)
+            contractParams = sp.contract(
+                farming_types.transfer_params_type,
+                params.token_address,
+                "transfer",
+            ).unwrap_some()
+            dataToBeSent = sp.cast(
+                [
+                    sp.record(
+                        from_=params.from_address,
+                        txs=[
+                            sp.record(
+                                to_=params.to_address,
+                                amount=params.token_amount,
+                                token_id=params.token_id,
+                            )
+                        ],
+                    )
+                ],
+                farming_types.transfer_params_type,
+            )
+            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+
+        # Transfer FA12 token function
+        @sp.private(with_storage="read-write", with_operations=True)
+        def transfer_fa12_token(self, params):
+            sp.cast(params, farming_types.transfer_fa12_token_params_type)
+            contractParams = sp.contract(
+                farming_types.transfer_fa12_params_type,
+                params.token_address,
+                "transfer",
+            ).unwrap_some()
+            dataToBeSent = sp.cast(
+                sp.record(
+                    from_=params.from_address,
+                    to_=params.to_address,
+                    value=params.token_amount,
+                ),
+                farming_types.transfer_fa12_params_type,
+            )
+            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+
+        # Create a new farm
+        @sp.entrypoint
+        def createFarm(self, params):
+            sp.cast(params, farming_types.create_farm_params_type)
+            farm_id = self.data.next_farm_id
+            farm_duration = sp.as_nat(params.end_time - params.start_time)
+            self.data.farms[farm_id] = sp.record(
+                pool_token=params.pool_token,
+                pool_balance=0,
+                reward_token=params.reward_token,
+                reward_supply=params.reward_supply,
+                reward_paid=0,
+                last_reward_time=params.start_time,
+                acc_reward_per_share=0,
+                reward_per_second=params.reward_supply / farm_duration,
+                start_time=params.start_time,
+                end_time=params.end_time,
+                lock_duration=params.lock_duration,
+                bonuses=params.bonuses,
+                owner=sp.sender,
+            )
+            self.data.next_farm_id += 1
+            with sp.match(params.reward_token.token_type):
+                with sp.case.fa12 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=params.reward_token.address,
+                        token_amount=params.reward_supply,
+                        from_address=sp.sender,
+                        to_address=sp.self_address(),
+                    )
+                    self.transfer_fa12_token(trasfer_params)
+                with sp.case.fa2 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=params.reward_token.address,
+                        token_id=params.reward_token.token_id,
+                        token_amount=params.reward_supply,
+                        from_address=sp.sender,
+                        to_address=sp.self_address(),
+                    )
+                    self.transfer_fa2_token(trasfer_params)
+            sp.emit(
+                sp.record(farm_id=farm_id),
+                tag="FarmCreated",
+            )
