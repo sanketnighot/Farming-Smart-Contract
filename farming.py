@@ -5,6 +5,123 @@ from farming_contract_types import farming_types  # Contract variable types
 
 @sp.module
 def farming_contract_module():
+    DECIMAL = 1000000000000
+
+    # Transfer FA2 token function
+    @sp.effects(with_storage="read-only", with_operations=True)
+    def transfer_fa2_token(params):
+        sp.cast(params, farming_types.transfer_fa2_token_params_type)
+        contractParams = sp.contract(
+            farming_types.transfer_params_type,
+            params.token_address,
+            "transfer",
+        ).unwrap_some()
+        dataToBeSent = sp.cast(
+            [
+                sp.record(
+                    from_=params.from_address,
+                    txs=[
+                        sp.record(
+                            to_=params.to_address,
+                            amount=params.token_amount,
+                            token_id=params.token_id,
+                        )
+                    ],
+                )
+            ],
+            farming_types.transfer_params_type,
+        )
+        sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+
+    # Transfer FA12 token function
+    @sp.effects(with_storage="read-only", with_operations=True)
+    def transfer_fa12_token(params):
+        sp.cast(params, farming_types.transfer_fa12_token_params_type)
+        contractParams = sp.contract(
+            farming_types.transfer_fa12_params_type,
+            params.token_address,
+            "transfer",
+        ).unwrap_some()
+        dataToBeSent = sp.cast(
+            sp.record(
+                from_=params.from_address,
+                to_=params.to_address,
+                value=params.token_amount,
+            ),
+            farming_types.transfer_fa12_params_type,
+        )
+        sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+
+    # Calculate the pending rewards
+    @sp.effects(with_storage="read-only")
+    def calculate_pending_rewards(params):
+        sp.cast(params, sp.record(farm_id=sp.nat, user=sp.address))
+        assert self.data.farms.contains(params.farm_id), "FarmNotFound"
+        assert self.data.ledger.contains(
+            (params.farm_id, params.user)
+        ), "DepositsNotFound"
+        pending_rewards = sp.as_nat(
+            (
+                self.data.farms[params.farm_id].acc_reward_per_share
+                * self.data.ledger[(params.farm_id, params.user)].amount / DECIMAL
+            )
+            - self.data.ledger[(params.farm_id, params.user)].reward_debt
+        )
+        sp.trace(sp.record(pending_rewards=pending_rewards))
+        return pending_rewards
+
+    # Harvest tokens from farm
+    @sp.effects(with_storage="read-write", with_operations=True)
+    def harvest_rewards(params):
+        sp.cast(params, sp.record(farm_id=sp.nat, user=sp.address))
+        assert self.data.farms.contains(params.farm_id), "FarmNotFound"
+        assert self.data.ledger.contains(
+            (params.farm_id, params.user)
+        ), "DepositsNotFound"
+        assert self.data.farms[params.farm_id].start_time <= sp.now, "FarmNotStarted"
+        assert (
+            self.data.ledger[(params.farm_id, params.user)].amount > 0
+        ), "NoTokensFound"
+        elasped_time = sp.as_nat(
+            sp.now - self.data.farms[params.farm_id].last_reward_time
+        )
+        if sp.now > self.data.farms[params.farm_id].end_time:
+            elasped_time = sp.as_nat(self.data.farms[params.farm_id].end_time - self.data.farms[
+                params.farm_id
+            ].last_reward_time)
+        self.data.farms[params.farm_id].acc_reward_per_share += (
+            self.data.farms[params.farm_id].reward_per_second * elasped_time * DECIMAL
+        ) / self.data.ledger[(params.farm_id, params.user)].amount
+        user_reward = calculate_pending_rewards(
+            sp.record(farm_id=params.farm_id, user=params.user)
+        )
+        with sp.match(self.data.farms[params.farm_id].reward_token.token_type):
+            with sp.case.fa12 as data:
+                assert data == ()
+                trasfer_params = sp.record(
+                    token_address=self.data.farms[params.farm_id].reward_token.address,
+                    token_amount=user_reward,
+                    from_address=params.user,
+                    to_address=sp.self_address(),
+                )
+                transfer_fa12_token(trasfer_params)
+            with sp.case.fa2 as data:
+                assert data == ()
+                trasfer_params = sp.record(
+                    token_address=self.data.farms[params.farm_id].reward_token.address,
+                    token_id=self.data.farms[params.farm_id].reward_token.token_id,
+                    token_amount=user_reward,
+                    from_address=params.user,
+                    to_address=sp.self_address(),
+                )
+                transfer_fa2_token(trasfer_params)
+        self.data.farms[params.farm_id].reward_paid += user_reward
+        self.data.ledger[(params.farm_id, params.user)].reward_debt += user_reward
+        self.data.farms[params.farm_id].last_reward_time = sp.now
+        sp.emit(
+            sp.record(farm_id=params.farm_id, user=params.user, reward=user_reward),
+            tag="Harvested",
+        )
 
     class FarmingContract(sp.Contract):
         # intial storage
@@ -78,51 +195,6 @@ def farming_contract_module():
             else:
                 self.data.administration_panel.paused = True
 
-        # Transfer FA2 token function
-        @sp.private(with_storage="read-write", with_operations=True)
-        def transfer_fa2_token(self, params):
-            sp.cast(params, farming_types.transfer_fa2_token_params_type)
-            contractParams = sp.contract(
-                farming_types.transfer_params_type,
-                params.token_address,
-                "transfer",
-            ).unwrap_some()
-            dataToBeSent = sp.cast(
-                [
-                    sp.record(
-                        from_=params.from_address,
-                        txs=[
-                            sp.record(
-                                to_=params.to_address,
-                                amount=params.token_amount,
-                                token_id=params.token_id,
-                            )
-                        ],
-                    )
-                ],
-                farming_types.transfer_params_type,
-            )
-            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
-
-        # Transfer FA12 token function
-        @sp.private(with_storage="read-write", with_operations=True)
-        def transfer_fa12_token(self, params):
-            sp.cast(params, farming_types.transfer_fa12_token_params_type)
-            contractParams = sp.contract(
-                farming_types.transfer_fa12_params_type,
-                params.token_address,
-                "transfer",
-            ).unwrap_some()
-            dataToBeSent = sp.cast(
-                sp.record(
-                    from_=params.from_address,
-                    to_=params.to_address,
-                    value=params.token_amount,
-                ),
-                farming_types.transfer_fa12_params_type,
-            )
-            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
-
         # Create a new farm
         @sp.entrypoint
         def createFarm(self, params):
@@ -154,7 +226,7 @@ def farming_contract_module():
                         from_address=sp.sender,
                         to_address=sp.self_address(),
                     )
-                    self.transfer_fa12_token(trasfer_params)
+                    transfer_fa12_token(trasfer_params)
                 with sp.case.fa2 as data:
                     assert data == ()
                     trasfer_params = sp.record(
