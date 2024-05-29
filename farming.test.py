@@ -25,8 +25,8 @@ if __name__ == "__main__":
         sc.h2("Initial Storage")
         sc.show(farming_contract.data)
 
-        # Create New Farm
-        sc.h2("Create Farm")
+        # Create New Farm 0
+        sc.h2("Create Farm 0")
         createFarmParams = sp.record(
             pool_token=sp.record(
                 address=sp.address("KT1PoolToken"),
@@ -38,24 +38,25 @@ if __name__ == "__main__":
                 token_id=sp.nat(0),
                 token_type=sp.variant.fa2(()),
             ),
-            reward_supply=sp.nat(1000000),
-            reward_per_second=sp.nat(12),
+            reward_supply=sp.nat(1000000000),
+            reward_per_second=sp.nat(5030181086519115),
             start_time=sp.timestamp(12),
-            end_time=sp.timestamp(24),
-            lock_duration=sp.int(12),
+            end_time=sp.timestamp(2000),
+            lock_duration=sp.int(0),
             bonuses=set(),
         )
         farming_contract.createFarm(
             createFarmParams,
             _sender=Address.admin,
+            _now=sp.timestamp(12),
         )
 
         # Log the current storage
         sc.h2("Current Data")
         sc.show(farming_contract.data)
 
-        # Create New Farm
-        sc.h2("Create Farm")
+        # Create New Farm 1
+        sc.h2("Create Farm 1")
         createFarmParams = sp.record(
             pool_token=sp.record(
                 address=sp.address("KT1PoolToken2"),
@@ -71,12 +72,49 @@ if __name__ == "__main__":
             reward_per_second=sp.nat(342423),
             start_time=sp.timestamp(324),
             end_time=sp.timestamp(3423),
-            lock_duration=sp.int(234),
+            lock_duration=sp.int(0),
             bonuses=set(),
         )
         farming_contract.createFarm(
             createFarmParams,
             _sender=Address.alice,
+            _now=sp.timestamp(12),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        # Deposit to Farm
+        sc.h2("Deposit to Farm")
+        farming_contract.deposit(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(10000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(12),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        # Deposit to Farm
+        sc.h2("Deposit to Farm")
+        farming_contract.deposit(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(1000000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(13),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        # Harvest from Farm
+        sc.h2("Harvest from Farm")
+        farming_contract.harvest(
+            sp.nat(0),
+            _sender=Address.alice,
+            _now=sp.timestamp(14),
         )
 
         # Log the current storage
