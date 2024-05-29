@@ -63,7 +63,8 @@ def farming_contract_module():
         pending_rewards = sp.as_nat(
             (
                 self.data.farms[params.farm_id].acc_reward_per_share
-                * self.data.ledger[(params.farm_id, params.user)].amount / DECIMAL
+                * self.data.ledger[(params.farm_id, params.user)].amount
+                / DECIMAL
             )
             - self.data.ledger[(params.farm_id, params.user)].reward_debt
         )
@@ -86,9 +87,10 @@ def farming_contract_module():
             sp.now - self.data.farms[params.farm_id].last_reward_time
         )
         if sp.now > self.data.farms[params.farm_id].end_time:
-            elasped_time = sp.as_nat(self.data.farms[params.farm_id].end_time - self.data.farms[
-                params.farm_id
-            ].last_reward_time)
+            elasped_time = sp.as_nat(
+                self.data.farms[params.farm_id].end_time
+                - self.data.farms[params.farm_id].last_reward_time
+            )
         self.data.farms[params.farm_id].acc_reward_per_share += (
             self.data.farms[params.farm_id].reward_per_second * elasped_time * DECIMAL
         ) / self.data.ledger[(params.farm_id, params.user)].amount

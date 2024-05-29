@@ -39,9 +39,8 @@ if __name__ == "__main__":
                 token_type=sp.variant.fa2(()),
             ),
             reward_supply=sp.nat(1000000000),
-            reward_per_second=sp.nat(5030181086519115),
             start_time=sp.timestamp(12),
-            end_time=sp.timestamp(2000),
+            end_time=sp.timestamp(112),
             lock_duration=sp.int(0),
             bonuses=set(),
         )
@@ -69,7 +68,6 @@ if __name__ == "__main__":
                 token_type=sp.variant.fa12(()),
             ),
             reward_supply=sp.nat(2342343243),
-            reward_per_second=sp.nat(342423),
             start_time=sp.timestamp(324),
             end_time=sp.timestamp(3423),
             lock_duration=sp.int(0),
@@ -97,10 +95,22 @@ if __name__ == "__main__":
         sc.h2("Current Data")
         sc.show(farming_contract.data)
 
-        # Deposit to Farm
-        sc.h2("Deposit to Farm")
-        farming_contract.deposit(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(1000000)),
+        # # Deposit to Farm
+        # sc.h2("Deposit to Farm")
+        # farming_contract.deposit(
+        #     sp.record(farm_id=sp.nat(0), token_amount=sp.nat(1000000)),
+        #     _sender=Address.alice,
+        #     _now=sp.timestamp(13),
+        # )
+
+        # # Log the current storage
+        # sc.h2("Current Data")
+        # sc.show(farming_contract.data)
+
+        # Harvest from Farm
+        sc.h2("Harvest from Farm")
+        farming_contract.harvest(
+            sp.nat(0),
             _sender=Address.alice,
             _now=sp.timestamp(13),
         )
@@ -109,12 +119,11 @@ if __name__ == "__main__":
         sc.h2("Current Data")
         sc.show(farming_contract.data)
 
-        # Harvest from Farm
         sc.h2("Harvest from Farm")
         farming_contract.harvest(
             sp.nat(0),
             _sender=Address.alice,
-            _now=sp.timestamp(14),
+            _now=sp.timestamp(120),
         )
 
         # Log the current storage

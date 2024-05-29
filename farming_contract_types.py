@@ -48,7 +48,6 @@ def farming_types():
             token_type=sp.variant(fa12=sp.unit, fa2=sp.unit),
         ),
         reward_supply=sp.nat,
-        reward_per_second=sp.nat,
         start_time=sp.timestamp,
         end_time=sp.timestamp,
         lock_duration=sp.int,
