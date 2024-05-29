@@ -209,7 +209,7 @@ def farming_contract_module():
                 reward_paid=0,
                 last_reward_time=params.start_time,
                 acc_reward_per_share=0,
-                reward_per_second=params.reward_supply / farm_duration,
+                reward_per_second=(params.reward_supply) / farm_duration,
                 start_time=params.start_time,
                 end_time=params.end_time,
                 lock_duration=params.lock_duration,
@@ -236,8 +236,66 @@ def farming_contract_module():
                         from_address=sp.sender,
                         to_address=sp.self_address(),
                     )
-                    self.transfer_fa2_token(trasfer_params)
+                    transfer_fa2_token(trasfer_params)
             sp.emit(
                 sp.record(farm_id=farm_id),
                 tag="FarmCreated",
             )
+
+        # Deposit tokens to farm
+        @sp.entrypoint
+        def deposit(self, params):
+            sp.cast(params, farming_types.deposit_params_type)
+            assert self.data.farms.contains(params.farm_id), "FarmNotFound"
+            farm = self.data.farms[params.farm_id]
+            assert farm.start_time <= sp.now, "FarmNotStarted"
+            assert farm.end_time >= sp.now, "FarmEnded"
+            assert params.token_amount > 0, "InvalidAmount"
+            if (
+                self.data.ledger.contains((params.farm_id, sp.sender))
+                and self.data.ledger[(params.farm_id, sp.sender)].amount > 0
+            ):
+                harvest_rewards(sp.record(farm_id=params.farm_id, user=sp.sender))
+            with sp.match(farm.pool_token.token_type):
+                with sp.case.fa12 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.pool_token.address,
+                        token_amount=params.token_amount,
+                        from_address=sp.sender,
+                        to_address=sp.self_address(),
+                    )
+                    transfer_fa12_token(trasfer_params)
+                with sp.case.fa2 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.pool_token.address,
+                        token_id=farm.pool_token.token_id,
+                        token_amount=params.token_amount,
+                        from_address=sp.sender,
+                        to_address=sp.self_address(),
+                    )
+                    transfer_fa2_token(trasfer_params)
+            self.data.farms[params.farm_id].pool_balance += params.token_amount
+            if self.data.ledger.contains((params.farm_id, sp.sender)):
+                self.data.ledger[
+                    (params.farm_id, sp.sender)
+                ].amount += params.token_amount
+            else:
+                self.data.ledger[(params.farm_id, sp.sender)] = sp.record(
+                    amount=params.token_amount, reward_debt=0, lock_end_time=sp.now
+                )
+            sp.emit(
+                sp.record(
+                    farm_id=params.farm_id,
+                    user=sp.sender,
+                    amount=params.token_amount,
+                ),
+                tag="TokensDeposited",
+            )
+
+        # Harvest rewards
+        @sp.entrypoint
+        def harvest(self, farm_id):
+            sp.cast(farm_id, sp.nat)
+            harvest_rewards(sp.record(farm_id=farm_id, user=sp.sender))
