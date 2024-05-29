@@ -35,6 +35,7 @@ def farming_types():
         owner=sp.address,
     )
 
+    # Create farm entrypoint params type
     create_farm_params_type: type = sp.record(
         pool_token=sp.record(
             address=sp.address,
@@ -95,3 +96,6 @@ def farming_types():
     transfer_fa12_params_type: type = sp.record(
         from_=sp.address, to_=sp.address, value=sp.nat
     ).layout(("from_ as from", ("to_ as to", "value")))
+
+    # Deposit entrypoint params type
+    deposit_params_type: type = sp.record(farm_id=sp.nat, token_amount=sp.nat)
