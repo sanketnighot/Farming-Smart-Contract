@@ -56,20 +56,18 @@ def farming_contract_module():
     @sp.effects(with_storage="read-only")
     def calculate_pending_rewards(params):
         sp.cast(params, sp.record(farm_id=sp.nat, user=sp.address))
-        assert self.data.farms.contains(params.farm_id), "FarmNotFound"
-        assert self.data.ledger.contains(
-            (params.farm_id, params.user)
-        ), "DepositsNotFound"
-        pending_rewards = sp.as_nat(
-            (
-                self.data.farms[params.farm_id].acc_reward_per_share
-                * self.data.ledger[(params.farm_id, params.user)].amount
-                / DECIMAL
+        if self.data.farms[params.farm_id].reward_supply > self.data.farms[params.farm_id].reward_paid:
+            pending_rewards = sp.as_nat(
+                (
+                    self.data.farms[params.farm_id].acc_reward_per_share
+                    * self.data.ledger[(params.farm_id, params.user)].amount
+                    / DECIMAL
+                )
+                - self.data.ledger[(params.farm_id, params.user)].reward_debt
             )
-            - self.data.ledger[(params.farm_id, params.user)].reward_debt
-        )
-        sp.trace(sp.record(pending_rewards=pending_rewards))
-        return pending_rewards
+            return pending_rewards
+        else:
+            return sp.nat(0)
 
     # Harvest tokens from farm
     @sp.effects(with_storage="read-write", with_operations=True)
@@ -82,21 +80,25 @@ def farming_contract_module():
         assert self.data.farms[params.farm_id].start_time <= sp.now, "FarmNotStarted"
         assert (
             self.data.ledger[(params.farm_id, params.user)].amount > 0
-        ), "NoTokensFound"
-        elasped_time = sp.as_nat(
-            sp.now - self.data.farms[params.farm_id].last_reward_time
-        )
-        if sp.now > self.data.farms[params.farm_id].end_time:
+        ), "DepositsNotFound"
+        elasped_time = sp.nat(0)
+        if sp.now >= self.data.farms[params.farm_id].end_time:
             elasped_time = sp.as_nat(
                 self.data.farms[params.farm_id].end_time
                 - self.data.farms[params.farm_id].last_reward_time
             )
-        self.data.farms[params.farm_id].acc_reward_per_share += (
-            self.data.farms[params.farm_id].reward_per_second * elasped_time * DECIMAL
-        ) / self.data.ledger[(params.farm_id, params.user)].amount
+            self.data.farms[params.farm_id].last_reward_time = self.data.farms[params.farm_id].end_time
+        else:
+            elasped_time = sp.as_nat(sp.now - self.data.farms[params.farm_id].last_reward_time)
+            self.data.farms[params.farm_id].last_reward_time = sp.now
+        if elasped_time > 0:
+            self.data.farms[params.farm_id].acc_reward_per_share += (
+                self.data.farms[params.farm_id].reward_per_second * elasped_time * DECIMAL
+            ) / self.data.ledger[(params.farm_id, params.user)].amount
         user_reward = calculate_pending_rewards(
             sp.record(farm_id=params.farm_id, user=params.user)
         )
+        sp.trace(("User Rewards", user_reward))
         with sp.match(self.data.farms[params.farm_id].reward_token.token_type):
             with sp.case.fa12 as data:
                 assert data == ()
@@ -119,7 +121,6 @@ def farming_contract_module():
                 transfer_fa2_token(trasfer_params)
         self.data.farms[params.farm_id].reward_paid += user_reward
         self.data.ledger[(params.farm_id, params.user)].reward_debt += user_reward
-        self.data.farms[params.farm_id].last_reward_time = sp.now
         sp.emit(
             sp.record(farm_id=params.farm_id, user=params.user, reward=user_reward),
             tag="Harvested",
