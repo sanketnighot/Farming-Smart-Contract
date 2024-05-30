@@ -300,4 +300,59 @@ def farming_contract_module():
         @sp.entrypoint
         def harvest(self, farm_id):
             sp.cast(farm_id, sp.nat)
-            harvest_rewards(sp.record(farm_id=farm_id, user=sp.sender))
+            if (
+                self.data.ledger.contains((farm_id, sp.sender))
+                and self.data.ledger[(farm_id, sp.sender)].amount > 0
+            ):
+                harvest_rewards(sp.record(farm_id=farm_id, user=sp.sender))
+
+        # Withdraw tokens from farm
+        @sp.entrypoint
+        def withdraw(self, params):
+            sp.cast(params, sp.record(farm_id=sp.nat, token_amount=sp.nat))
+            assert self.data.farms.contains(params.farm_id), "FarmNotFound"
+            farm = self.data.farms[params.farm_id]
+            assert farm.start_time <= sp.now, "FarmNotStarted"
+            assert self.data.ledger.contains((params.farm_id, sp.sender)), "NoDeposits"
+            assert (
+                self.data.ledger[(params.farm_id, sp.sender)].amount >= params.token_amount
+            ), "InsufficientDeposits"
+            if self.data.farms[params.farm_id].lock_duration > 0:
+                assert (
+                    self.data.ledger[(params.farm_id, sp.sender)].lock_end_time <= sp.now
+                ), "TokensLocked"
+            if (
+                self.data.ledger.contains((params.farm_id, sp.sender))
+                and self.data.ledger[(params.farm_id, sp.sender)].amount > 0
+            ):
+                harvest_rewards(sp.record(farm_id=params.farm_id, user=sp.sender))
+            self.data.ledger[(params.farm_id, sp.sender)].amount = sp.as_nat(self.data.ledger[(params.farm_id, sp.sender)].amount - params.token_amount)
+            with sp.match(farm.pool_token.token_type):
+                with sp.case.fa12 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.pool_token.address,
+                        token_amount=params.token_amount,
+                        from_address=sp.self_address(),
+                        to_address=sp.sender,
+                    )
+                    transfer_fa12_token(trasfer_params)
+                with sp.case.fa2 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.pool_token.address,
+                        token_id=farm.pool_token.token_id,
+                        token_amount=params.token_amount,
+                        from_address=sp.self_address(),
+                        to_address=sp.sender,
+                    )
+                    transfer_fa2_token(trasfer_params)
+            self.data.farms[params.farm_id].pool_balance = sp.as_nat(self.data.farms[params.farm_id].pool_balance - params.token_amount)
+            sp.emit(
+                sp.record(
+                    farm_id=params.farm_id,
+                    user=sp.sender,
+                    amount=params.token_amount,
+                    ),
+                tag="TokensWithdrawn"
+            )

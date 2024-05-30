@@ -123,7 +123,31 @@ if __name__ == "__main__":
         farming_contract.harvest(
             sp.nat(0),
             _sender=Address.alice,
-            _now=sp.timestamp(120),
+            _now=sp.timestamp(110),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        # Withdraw from Farm
+        sc.h2("Withdraw from Farm")
+        farming_contract.withdraw(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(122)
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        # Withdraw from Farm
+        sc.h2("Withdraw from Farm")
+        farming_contract.withdraw(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(130)
         )
 
         # Log the current storage
