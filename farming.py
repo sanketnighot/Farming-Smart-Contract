@@ -56,7 +56,10 @@ def farming_contract_module():
     @sp.effects(with_storage="read-only")
     def calculate_pending_rewards(params):
         sp.cast(params, sp.record(farm_id=sp.nat, user=sp.address))
-        if self.data.farms[params.farm_id].reward_supply > self.data.farms[params.farm_id].reward_paid:
+        if (
+            self.data.farms[params.farm_id].reward_supply
+            > self.data.farms[params.farm_id].reward_paid
+        ):
             pending_rewards = sp.as_nat(
                 (
                     self.data.farms[params.farm_id].acc_reward_per_share
@@ -87,13 +90,19 @@ def farming_contract_module():
                 self.data.farms[params.farm_id].end_time
                 - self.data.farms[params.farm_id].last_reward_time
             )
-            self.data.farms[params.farm_id].last_reward_time = self.data.farms[params.farm_id].end_time
+            self.data.farms[params.farm_id].last_reward_time = self.data.farms[
+                params.farm_id
+            ].end_time
         else:
-            elasped_time = sp.as_nat(sp.now - self.data.farms[params.farm_id].last_reward_time)
+            elasped_time = sp.as_nat(
+                sp.now - self.data.farms[params.farm_id].last_reward_time
+            )
             self.data.farms[params.farm_id].last_reward_time = sp.now
         if elasped_time > 0:
             self.data.farms[params.farm_id].acc_reward_per_share += (
-                self.data.farms[params.farm_id].reward_per_second * elasped_time * DECIMAL
+                self.data.farms[params.farm_id].reward_per_second
+                * elasped_time
+                * DECIMAL
             ) / self.data.ledger[(params.farm_id, params.user)].amount
         user_reward = calculate_pending_rewards(
             sp.record(farm_id=params.farm_id, user=params.user)
@@ -316,18 +325,23 @@ def farming_contract_module():
             assert farm.start_time <= sp.now, "FarmNotStarted"
             assert self.data.ledger.contains((params.farm_id, sp.sender)), "NoDeposits"
             assert (
-                self.data.ledger[(params.farm_id, sp.sender)].amount >= params.token_amount
+                self.data.ledger[(params.farm_id, sp.sender)].amount
+                >= params.token_amount
             ), "InsufficientDeposits"
             if self.data.farms[params.farm_id].lock_duration > 0:
                 assert (
-                    self.data.ledger[(params.farm_id, sp.sender)].lock_end_time <= sp.now
+                    self.data.ledger[(params.farm_id, sp.sender)].lock_end_time
+                    <= sp.now
                 ), "TokensLocked"
             if (
                 self.data.ledger.contains((params.farm_id, sp.sender))
                 and self.data.ledger[(params.farm_id, sp.sender)].amount > 0
             ):
                 harvest_rewards(sp.record(farm_id=params.farm_id, user=sp.sender))
-            self.data.ledger[(params.farm_id, sp.sender)].amount = sp.as_nat(self.data.ledger[(params.farm_id, sp.sender)].amount - params.token_amount)
+            self.data.ledger[(params.farm_id, sp.sender)].amount = sp.as_nat(
+                self.data.ledger[(params.farm_id, sp.sender)].amount
+                - params.token_amount
+            )
             with sp.match(farm.pool_token.token_type):
                 with sp.case.fa12 as data:
                     assert data == ()
@@ -348,12 +362,14 @@ def farming_contract_module():
                         to_address=sp.sender,
                     )
                     transfer_fa2_token(trasfer_params)
-            self.data.farms[params.farm_id].pool_balance = sp.as_nat(self.data.farms[params.farm_id].pool_balance - params.token_amount)
+            self.data.farms[params.farm_id].pool_balance = sp.as_nat(
+                self.data.farms[params.farm_id].pool_balance - params.token_amount
+            )
             sp.emit(
                 sp.record(
                     farm_id=params.farm_id,
                     user=sp.sender,
                     amount=params.token_amount,
-                    ),
-                tag="TokensWithdrawn"
+                ),
+                tag="TokensWithdrawn",
             )
