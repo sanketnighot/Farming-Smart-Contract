@@ -135,7 +135,7 @@ if __name__ == "__main__":
         farming_contract.withdraw(
             sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
             _sender=Address.alice,
-            _now=sp.timestamp(122)
+            _now=sp.timestamp(122),
         )
 
         # Log the current storage
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         farming_contract.withdraw(
             sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
             _sender=Address.alice,
-            _now=sp.timestamp(130)
+            _now=sp.timestamp(130),
         )
 
         # Log the current storage
