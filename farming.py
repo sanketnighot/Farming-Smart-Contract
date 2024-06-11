@@ -1,56 +1,61 @@
 import smartpy as sp  # type: ignore
-import utilities.Address as Address  # Dummy Addresses
 from farming_contract_types import farming_types  # Contract variable types
+import utilities.Address as Address
+from farming_contract_types import farming_types
+from utilities.fa2_fungible_minimal import fa2_fungible
 
 
 @sp.module
 def farming_contract_module():
-    DECIMAL = 1000000000000
+    DECIMAL = 1_000_000_000_000
 
     # Transfer FA2 token function
     @sp.effects(with_storage="read-only", with_operations=True)
     def transfer_fa2_token(params):
         sp.cast(params, farming_types.transfer_fa2_token_params_type)
-        contractParams = sp.contract(
-            farming_types.transfer_params_type,
-            params.token_address,
-            "transfer",
-        ).unwrap_some()
-        dataToBeSent = sp.cast(
-            [
-                sp.record(
-                    from_=params.from_address,
-                    txs=[
-                        sp.record(
-                            to_=params.to_address,
-                            amount=params.token_amount,
-                            token_id=params.token_id,
-                        )
-                    ],
-                )
-            ],
-            farming_types.transfer_params_type,
-        )
-        sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+        if params.token_amount > 0:
+            contractParams = sp.contract(
+                farming_types.transfer_params_type,
+                params.token_address,
+                "transfer",
+            ).unwrap_some()
+            dataToBeSent = sp.cast(
+                [
+                    sp.record(
+                        from_=params.from_address,
+                        txs=[
+                            sp.record(
+                                to_=params.to_address,
+                                amount=params.token_amount,
+                                token_id=params.token_id,
+                            )
+                        ],
+                    )
+                ],
+                farming_types.transfer_params_type,
+            )
+            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+            sp.trace(("Transfer Done", params.token_amount, ("To", params.to_address)))
 
     # Transfer FA12 token function
     @sp.effects(with_storage="read-only", with_operations=True)
     def transfer_fa12_token(params):
         sp.cast(params, farming_types.transfer_fa12_token_params_type)
-        contractParams = sp.contract(
-            farming_types.transfer_fa12_params_type,
-            params.token_address,
-            "transfer",
-        ).unwrap_some()
-        dataToBeSent = sp.cast(
-            sp.record(
-                from_=params.from_address,
-                to_=params.to_address,
-                value=params.token_amount,
-            ),
-            farming_types.transfer_fa12_params_type,
-        )
-        sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
+        if params.token_amount > 0:
+            contractParams = sp.contract(
+                farming_types.transfer_fa12_params_type,
+                params.token_address,
+                "transfer",
+            ).unwrap_some()
+            dataToBeSent = sp.cast(
+                sp.record(
+                    from_=params.from_address,
+                    to_=params.to_address,
+                    value=params.token_amount,
+                ),
+                farming_types.transfer_fa12_params_type,
+            )
+            sp.transfer(dataToBeSent, sp.mutez(0), contractParams)
 
     # Calculate the pending rewards
     @sp.effects(with_storage="read-only")
@@ -114,8 +119,8 @@ def farming_contract_module():
                 trasfer_params = sp.record(
                     token_address=self.data.farms[params.farm_id].reward_token.address,
                     token_amount=user_reward,
-                    from_address=params.user,
-                    to_address=sp.self_address(),
+                    from_address=sp.self_address(),
+                    to_address=params.user,
                 )
                 transfer_fa12_token(trasfer_params)
             with sp.case.fa2 as data:
@@ -124,8 +129,8 @@ def farming_contract_module():
                     token_address=self.data.farms[params.farm_id].reward_token.address,
                     token_id=self.data.farms[params.farm_id].reward_token.token_id,
                     token_amount=user_reward,
-                    from_address=params.user,
-                    to_address=sp.self_address(),
+                    from_address=sp.self_address(),
+                    to_address=params.user,
                 )
                 transfer_fa2_token(trasfer_params)
         self.data.farms[params.farm_id].reward_paid += user_reward
