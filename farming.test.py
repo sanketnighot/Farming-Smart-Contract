@@ -10,7 +10,8 @@ if __name__ == "__main__":
     def test():
         # Create test scenarios and import the required modules
         sc = sp.test_scenario(
-            "FarmingContractTest", [farming_types, sp.utils, fa2_fungible,farming_contract_module]
+            "FarmingContractTest",
+            [farming_types, sp.utils, fa2_fungible, farming_contract_module],
         )
 
         # Originate the token contract
@@ -21,9 +22,24 @@ if __name__ == "__main__":
         )
         sc += token
 
+        reward_token = fa2_fungible.Fa2FungibleMinimal(
+            administrator=Address.admin,
+            metadata=sp.scenario_utils.metadata_of_url("https://reward_token.com"),
+        )
+        sc += reward_token
+
         token.mint(
             sp.record(
-                amount=sp.nat(1000000000),
+                amount=sp.nat(1_000_000_000_000_000),
+                to_=Address.admin,
+                token=sp.variant("new", {"0": sp.bytes("0x746f6b656e30")}),
+            ),
+            _sender=Address.admin,
+        )
+
+        reward_token.mint(
+            sp.record(
+                amount=sp.nat(1_000_000_000_000_000),
                 to_=Address.admin,
                 token=sp.variant("new", {"0": sp.bytes("0x746f6b656e30")}),
             ),
@@ -32,8 +48,17 @@ if __name__ == "__main__":
 
         token.mint(
             sp.record(
-                amount=sp.nat(1000000),
+                amount=sp.nat(1_000_000_000_000_000),
                 to_=Address.alice,
+                token=sp.variant("existing", sp.nat(0)),
+            ),
+            _sender=Address.admin,
+        )
+
+        token.mint(
+            sp.record(
+                amount=sp.nat(1_000_000_000_000_000),
+                to_=Address.bob,
                 token=sp.variant("existing", sp.nat(0)),
             ),
             _sender=Address.admin,
@@ -59,7 +84,23 @@ if __name__ == "__main__":
                 sp.variant(
                     "add_operator",
                     sp.record(
-                        owner=Address.admin, operator=farming_contract.address, token_id=0
+                        owner=Address.admin,
+                        operator=farming_contract.address,
+                        token_id=0,
+                    ),
+                )
+            ],
+            _sender=Address.admin,
+        )
+
+        reward_token.update_operators(
+            [
+                sp.variant(
+                    "add_operator",
+                    sp.record(
+                        owner=Address.admin,
+                        operator=farming_contract.address,
+                        token_id=0,
                     ),
                 )
             ],
@@ -71,11 +112,27 @@ if __name__ == "__main__":
                 sp.variant(
                     "add_operator",
                     sp.record(
-                        owner=Address.alice, operator=farming_contract.address, token_id=0
+                        owner=Address.alice,
+                        operator=farming_contract.address,
+                        token_id=0,
                     ),
                 )
             ],
             _sender=Address.alice,
+        )
+
+        token.update_operators(
+            [
+                sp.variant(
+                    "add_operator",
+                    sp.record(
+                        owner=Address.bob,
+                        operator=farming_contract.address,
+                        token_id=0,
+                    ),
+                )
+            ],
+            _sender=Address.bob,
         )
 
         # Log the initial storage
@@ -91,20 +148,20 @@ if __name__ == "__main__":
                 token_type=sp.variant.fa2(()),
             ),
             reward_token=sp.record(
-                address=token.address,
+                address=reward_token.address,
                 token_id=sp.nat(0),
                 token_type=sp.variant.fa2(()),
             ),
-            reward_supply=sp.nat(1000000000),
-            start_time=sp.timestamp(12),
-            end_time=sp.timestamp(112),
-            lock_duration=sp.int(0),
+            reward_supply=sp.nat(100_000_000),
+            start_time=sp.timestamp(1),
+            end_time=sp.timestamp(101),
+            lock_duration=sp.nat(0),
             bonuses=set(),
         )
         farming_contract.createFarm(
             createFarmParams,
             _sender=Address.admin,
-            _now=sp.timestamp(12),
+            _now=sp.timestamp(0),
         )
 
         # Log the current storage
@@ -112,11 +169,11 @@ if __name__ == "__main__":
         sc.show(farming_contract.data)
 
         # Deposit to Farm
-        sc.h2("Deposit to Farm")
+        sc.h2("Deposit 1 to Farm")
         farming_contract.deposit(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(50000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000_000)),
             _sender=Address.alice,
-            _now=sp.timestamp(12),
+            _now=sp.timestamp(2),
         )
 
         # Log the current storage
@@ -124,11 +181,11 @@ if __name__ == "__main__":
         sc.show(farming_contract.data)
 
         # Deposit to Farm
-        sc.h2("Deposit to Farm")
+        sc.h2("Deposit 2 to Farm")
         farming_contract.deposit(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(50000)),
-            _sender=Address.alice,
-            _now=sp.timestamp(13),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000_000)),
+            _sender=Address.bob,
+            _now=sp.timestamp(7),
         )
 
         # Log the current storage
@@ -136,22 +193,22 @@ if __name__ == "__main__":
         sc.show(farming_contract.data)
 
         # Harvest from Farm
-        sc.h2("Harvest from Farm")
+        sc.h2("Harvest 1 from Farm")
         farming_contract.harvest(
             sp.nat(0),
             _sender=Address.alice,
-            _now=sp.timestamp(13),
+            _now=sp.timestamp(30),
         )
 
         # Log the current storage
         sc.h2("Current Data")
         sc.show(farming_contract.data)
 
-        sc.h2("Harvest from Farm")
+        sc.h2("Harvest 2 from Farm")
         farming_contract.harvest(
             sp.nat(0),
-            _sender=Address.alice,
-            _now=sp.timestamp(110),
+            _sender=Address.bob,
+            _now=sp.timestamp(70),
         )
 
         # Log the current storage
@@ -159,25 +216,55 @@ if __name__ == "__main__":
         sc.show(farming_contract.data)
 
         # Withdraw from Farm
-        sc.h2("Withdraw from Farm")
+        sc.h2("Withdraw 1 from Farm")
         farming_contract.withdraw(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000_000)),
             _sender=Address.alice,
-            _now=sp.timestamp(122),
+            _now=sp.timestamp(88),
         )
 
         # Log the current storage
         sc.h2("Current Data")
         sc.show(farming_contract.data)
+        sc.show(token.data.ledger)
 
         # Withdraw from Farm
-        sc.h2("Withdraw from Farm")
+        sc.h2("Withdraw 2 from Farm")
         farming_contract.withdraw(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(5000)),
-            _sender=Address.alice,
-            _now=sp.timestamp(130),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000_000)),
+            _sender=Address.bob,
+            _now=sp.timestamp(92),
         )
 
         # Log the current storage
         sc.h2("Current Data")
         sc.show(farming_contract.data)
+
+        sc.h2("Deposit 1 to Farm")
+        farming_contract.deposit(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(96),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+
+        sc.show(
+            farming_contract.getLedger(sp.record(farm_id=sp.nat(0), user=Address.alice))
+        )
+
+        sc.h2("Withdraw 1 from Farm")
+        farming_contract.withdraw(
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000)),
+            _sender=Address.alice,
+            _now=sp.timestamp(102),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+        sc.show(token.data.ledger)
+        sc.show(reward_token.data.ledger)
+        sc.show(farming_contract.getFarm(sp.nat(0)))
