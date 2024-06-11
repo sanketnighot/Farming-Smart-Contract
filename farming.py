@@ -60,15 +60,21 @@ def farming_contract_module():
             self.data.farms[params.farm_id].reward_supply
             > self.data.farms[params.farm_id].reward_paid
         ):
-            pending_rewards = sp.as_nat(
-                (
-                    self.data.farms[params.farm_id].acc_reward_per_share
-                    * self.data.ledger[(params.farm_id, params.user)].amount
-                    / DECIMAL
-                )
-                - self.data.ledger[(params.farm_id, params.user)].reward_debt
+            pending_rewards = (
+                self.data.ledger[(params.farm_id, params.user)].amount
+                * self.data.farms[params.farm_id].acc_reward_per_share
+                / DECIMAL
+            ) - self.data.ledger[(params.farm_id, params.user)].reward_debt
+            available_rewards = (
+                self.data.farms[params.farm_id].reward_supply
+                - self.data.farms[params.farm_id].reward_paid
             )
-            return pending_rewards
+            sp.trace(("Pending Rewards", pending_rewards))
+            sp.trace(("Avlable Rewards", available_rewards))
+            if pending_rewards > available_rewards:
+                return sp.as_nat(available_rewards)
+            else:
+                return sp.as_nat(pending_rewards)
         else:
             return sp.nat(0)
 
@@ -98,12 +104,21 @@ def farming_contract_module():
                 sp.now - self.data.farms[params.farm_id].last_reward_time
             )
             self.data.farms[params.farm_id].last_reward_time = sp.now
+        sp.trace(("Elapsed Time", elasped_time))
         if elasped_time > 0:
+            reward_accured = (
+                elasped_time * self.data.farms[params.farm_id].reward_per_second
+            )
             self.data.farms[params.farm_id].acc_reward_per_share += (
-                self.data.farms[params.farm_id].reward_per_second
-                * elasped_time
-                * DECIMAL
-            ) / self.data.ledger[(params.farm_id, params.user)].amount
+                reward_accured * DECIMAL
+            ) / self.data.farms[params.farm_id].pool_balance
+            sp.trace(("Reward Accured", reward_accured))
+            sp.trace(
+                (
+                    "Acc_Reward_Per_Share",
+                    self.data.farms[params.farm_id].acc_reward_per_share,
+                )
+            )
         user_reward = calculate_pending_rewards(
             sp.record(farm_id=params.farm_id, user=params.user)
         )
@@ -211,6 +226,7 @@ def farming_contract_module():
         @sp.entrypoint
         def createFarm(self, params):
             sp.cast(params, farming_types.create_farm_params_type)
+            sp.trace(("Current Time", sp.now))
             farm_id = self.data.next_farm_id
             farm_duration = sp.as_nat(params.end_time - params.start_time)
             self.data.farms[farm_id] = sp.record(
@@ -249,6 +265,15 @@ def farming_contract_module():
                         to_address=sp.self_address(),
                     )
                     transfer_fa2_token(trasfer_params)
+            sp.trace(
+                (
+                    "Reward Balance",
+                    self.data.farms[farm_id].reward_supply
+                    - self.data.farms[farm_id].reward_paid,
+                )
+            )
+            sp.trace(("Pool Balance", self.data.farms[farm_id].pool_balance))
+            sp.trace("~~~~~~~~~~~~~~~ End of Txn ~~~~~~~~~~~~~~~~")
             sp.emit(
                 sp.record(farm_id=farm_id),
                 tag="FarmCreated",
@@ -258,6 +283,7 @@ def farming_contract_module():
         @sp.entrypoint
         def deposit(self, params):
             sp.cast(params, farming_types.deposit_params_type)
+            sp.trace(("Current Time", sp.now))
             assert self.data.farms.contains(params.farm_id), "FarmNotFound"
             farm = self.data.farms[params.farm_id]
             assert farm.start_time <= sp.now, "FarmNotStarted"
@@ -297,6 +323,15 @@ def farming_contract_module():
                 self.data.ledger[(params.farm_id, sp.sender)] = sp.record(
                     amount=params.token_amount, reward_debt=0, lock_end_time=sp.now
                 )
+            sp.trace(
+                (
+                    "Reward Balance",
+                    self.data.farms[params.farm_id].reward_supply
+                    - self.data.farms[params.farm_id].reward_paid,
+                )
+            )
+            sp.trace(("Pool Balance", self.data.farms[params.farm_id].pool_balance))
+            sp.trace("~~~~~~~~~~~~~~~ End of Txn ~~~~~~~~~~~~~~~~")
             sp.emit(
                 sp.record(
                     farm_id=params.farm_id,
@@ -310,16 +345,27 @@ def farming_contract_module():
         @sp.entrypoint
         def harvest(self, farm_id):
             sp.cast(farm_id, sp.nat)
+            sp.trace(("Current Time", sp.now))
             if (
                 self.data.ledger.contains((farm_id, sp.sender))
                 and self.data.ledger[(farm_id, sp.sender)].amount > 0
             ):
                 harvest_rewards(sp.record(farm_id=farm_id, user=sp.sender))
+            sp.trace(
+                (
+                    "Reward Balance",
+                    self.data.farms[farm_id].reward_supply
+                    - self.data.farms[farm_id].reward_paid,
+                )
+            )
+            sp.trace(("Pool Balance", self.data.farms[farm_id].pool_balance))
+            sp.trace("~~~~~~~~~~~~~~~ End of Txn ~~~~~~~~~~~~~~~~")
 
         # Withdraw tokens from farm
         @sp.entrypoint
         def withdraw(self, params):
             sp.cast(params, sp.record(farm_id=sp.nat, token_amount=sp.nat))
+            sp.trace(("Current Time", sp.now))
             assert self.data.farms.contains(params.farm_id), "FarmNotFound"
             farm = self.data.farms[params.farm_id]
             assert farm.start_time <= sp.now, "FarmNotStarted"
@@ -365,6 +411,17 @@ def farming_contract_module():
             self.data.farms[params.farm_id].pool_balance = sp.as_nat(
                 self.data.farms[params.farm_id].pool_balance - params.token_amount
             )
+            if self.data.ledger[(params.farm_id, sp.sender)].amount == 0:
+                del self.data.ledger[(params.farm_id, sp.sender)]
+            sp.trace(
+                (
+                    "Reward Balance",
+                    self.data.farms[params.farm_id].reward_supply
+                    - self.data.farms[params.farm_id].reward_paid,
+                )
+            )
+            sp.trace(("Pool Balance", self.data.farms[params.farm_id].pool_balance))
+            sp.trace("~~~~~~~~~~~~~~~ End of Txn ~~~~~~~~~~~~~~~~")
             sp.emit(
                 sp.record(
                     farm_id=params.farm_id,
@@ -373,3 +430,37 @@ def farming_contract_module():
                 ),
                 tag="TokensWithdrawn",
             )
+
+        # Get the farm data
+        @sp.onchain_view()
+        def getFarm(self, farm_id):
+            sp.cast(farm_id, sp.nat)
+            assert self.data.farms.contains(farm_id), "FarmNotFound"
+            return self.data.farms[farm_id]
+
+        # Get the ledger data
+        @sp.onchain_view()
+        def getLedger(self, params):
+            sp.cast(params, sp.record(farm_id=sp.nat, user=sp.address))
+            assert self.data.ledger.contains(
+                (params.farm_id, params.user)
+            ), "DepositsNotFound"
+            return self.data.ledger[(params.farm_id, params.user)]
+
+
+if __name__ == "__main__":
+
+    @sp.add_test()
+    def test():
+        # Create test scenarios and import the required modules
+        sc = sp.test_scenario(
+            "FarmingContractCompiled",
+            [farming_types, sp.utils, fa2_fungible, farming_contract_module],
+        )
+
+        # Originate the farming contract
+        farming_contract = farming_contract_module.FarmingContract(
+            administrator=sp.address("tz1gPGbygTTqXPt3saqpnPW5YviLUGSB36rx"),
+            metadata=sp.scenario_utils.metadata_of_url("https://example.com"),
+        )
+        sc += farming_contract

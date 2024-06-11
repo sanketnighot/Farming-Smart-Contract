@@ -154,6 +154,7 @@ cython_debug/
 
 /test_outputs/
 /FarmingContractTest/
+/FarmingContractCompiled/
 /vmm_orders/
 
 .DS_Store

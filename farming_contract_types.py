@@ -30,7 +30,7 @@ def farming_types():
         reward_per_second=sp.nat,
         start_time=sp.timestamp,
         end_time=sp.timestamp,
-        lock_duration=sp.int,
+        lock_duration=sp.nat,
         bonuses=sp.set[sp.record(end_time=sp.timestamp, multipier=sp.nat)],
         owner=sp.address,
     )
@@ -50,7 +50,7 @@ def farming_types():
         reward_supply=sp.nat,
         start_time=sp.timestamp,
         end_time=sp.timestamp,
-        lock_duration=sp.int,
+        lock_duration=sp.nat,
         bonuses=sp.set[sp.record(end_time=sp.timestamp, multipier=sp.nat)],
     )
 
