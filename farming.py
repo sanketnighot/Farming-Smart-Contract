@@ -75,7 +75,18 @@ def farming_contract_module():
                 - self.data.farms[params.farm_id].reward_paid
             )
             sp.trace(("Pending Rewards", pending_rewards))
-            sp.trace(("Avlable Rewards", available_rewards))
+            sp.trace(
+                (
+                    ("Avlable Rewards", available_rewards),
+                    (
+                        (
+                            "reward_supply",
+                            self.data.farms[params.farm_id].reward_supply,
+                        ),
+                        ("reward_paid", self.data.farms[params.farm_id].reward_paid),
+                    ),
+                )
+            )
             if pending_rewards > available_rewards:
                 return sp.as_nat(available_rewards)
             else:
@@ -111,13 +122,16 @@ def farming_contract_module():
             self.data.farms[params.farm_id].last_reward_time = sp.now
         sp.trace(("Elapsed Time", elasped_time))
         if elasped_time > 0:
-            reward_accured = (
-                elasped_time * self.data.farms[params.farm_id].reward_per_second
-            )
             self.data.farms[params.farm_id].acc_reward_per_share += (
-                reward_accured * DECIMAL
+                self.data.farms[params.farm_id].reward_per_second * elasped_time
             ) / self.data.farms[params.farm_id].pool_balance
-            sp.trace(("Reward Accured", reward_accured))
+            sp.trace(
+                (
+                    "Reward Accured",
+                    (self.data.farms[params.farm_id].reward_per_second * elasped_time)
+                    / self.data.farms[params.farm_id].pool_balance,
+                )
+            )
             sp.trace(
                 (
                     "Acc_Reward_Per_Share",
@@ -149,7 +163,10 @@ def farming_contract_module():
                 )
                 transfer_fa2_token(trasfer_params)
         self.data.farms[params.farm_id].reward_paid += user_reward
-        self.data.ledger[(params.farm_id, params.user)].reward_debt += user_reward
+        self.data.ledger[(params.farm_id, params.user)].reward_debt = (
+            self.data.ledger[(params.farm_id, params.user)].amount
+            * self.data.farms[params.farm_id].acc_reward_per_share
+        ) / DECIMAL
         sp.emit(
             sp.record(farm_id=params.farm_id, user=params.user, reward=user_reward),
             tag="Harvested",
