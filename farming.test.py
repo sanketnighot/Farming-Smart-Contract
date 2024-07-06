@@ -171,7 +171,7 @@ if __name__ == "__main__":
         # Deposit to Farm
         sc.h2("Deposit 1 to Farm")
         farming_contract.deposit(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000_000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000)),
             _sender=Address.alice,
             _now=sp.timestamp(2),
         )
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         # Deposit to Farm
         sc.h2("Deposit 2 to Farm")
         farming_contract.deposit(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000_000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000)),
             _sender=Address.bob,
             _now=sp.timestamp(7),
         )
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         # Withdraw from Farm
         sc.h2("Withdraw 1 from Farm")
         farming_contract.withdraw(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000_000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000_000)),
             _sender=Address.alice,
             _now=sp.timestamp(88),
         )
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         # Withdraw from Farm
         sc.h2("Withdraw 2 from Farm")
         farming_contract.withdraw(
-            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000_000)),
+            sp.record(farm_id=sp.nat(0), token_amount=sp.nat(7_000_000)),
             _sender=Address.bob,
             _now=sp.timestamp(92),
         )
@@ -260,6 +260,19 @@ if __name__ == "__main__":
             sp.record(farm_id=sp.nat(0), token_amount=sp.nat(3_000)),
             _sender=Address.alice,
             _now=sp.timestamp(102),
+        )
+
+        # Log the current storage
+        sc.h2("Current Data")
+        sc.show(farming_contract.data)
+        sc.show(token.data.ledger)
+        sc.show(reward_token.data.ledger)
+        sc.show(farming_contract.getFarm(sp.nat(0)))
+
+        # End Farm
+        sc.h2("End Farm")
+        farming_contract.endFarm(
+            sp.nat(0), _sender=Address.admin, _now=sp.timestamp(103)
         )
 
         # Log the current storage
