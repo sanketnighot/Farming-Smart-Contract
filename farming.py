@@ -1,6 +1,5 @@
 import smartpy as sp  # type: ignore
 from farming_contract_types import farming_types  # Contract variable types
-import utilities.Address as Address
 from farming_contract_types import farming_types
 from utilities.fa2_fungible_minimal import fa2_fungible
 
@@ -75,18 +74,7 @@ def farming_contract_module():
                 - self.data.farms[params.farm_id].reward_paid
             )
             sp.trace(("Pending Rewards", pending_rewards))
-            sp.trace(
-                (
-                    ("Avlable Rewards", available_rewards),
-                    (
-                        (
-                            "reward_supply",
-                            self.data.farms[params.farm_id].reward_supply,
-                        ),
-                        ("reward_paid", self.data.farms[params.farm_id].reward_paid),
-                    ),
-                )
-            )
+            sp.trace(("Avlable Rewards", available_rewards))
             if pending_rewards > available_rewards:
                 return sp.as_nat(available_rewards)
             else:
@@ -122,16 +110,13 @@ def farming_contract_module():
             self.data.farms[params.farm_id].last_reward_time = sp.now
         sp.trace(("Elapsed Time", elasped_time))
         if elasped_time > 0:
-            self.data.farms[params.farm_id].acc_reward_per_share += (
-                self.data.farms[params.farm_id].reward_per_second * elasped_time
-            ) / self.data.farms[params.farm_id].pool_balance
-            sp.trace(
-                (
-                    "Reward Accured",
-                    (self.data.farms[params.farm_id].reward_per_second * elasped_time)
-                    / self.data.farms[params.farm_id].pool_balance,
-                )
+            reward_accured = (
+                elasped_time * self.data.farms[params.farm_id].reward_per_second
             )
+            self.data.farms[params.farm_id].acc_reward_per_share += (
+                reward_accured * DECIMAL
+            ) / self.data.farms[params.farm_id].pool_balance
+            sp.trace(("Reward Accured", reward_accured))
             sp.trace(
                 (
                     "Acc_Reward_Per_Share",
@@ -163,10 +148,11 @@ def farming_contract_module():
                 )
                 transfer_fa2_token(trasfer_params)
         self.data.farms[params.farm_id].reward_paid += user_reward
-        self.data.ledger[(params.farm_id, params.user)].reward_debt = (
-            self.data.ledger[(params.farm_id, params.user)].amount
-            * self.data.farms[params.farm_id].acc_reward_per_share
-        ) / DECIMAL
+        self.data.ledger[(params.farm_id, params.user)].reward_debt += (
+            self.data.farms[params.farm_id].acc_reward_per_share
+            * self.data.ledger[(params.farm_id, params.user)].amount
+            / DECIMAL
+        )
         sp.emit(
             sp.record(farm_id=params.farm_id, user=params.user, reward=user_reward),
             tag="Harvested",
@@ -316,6 +302,39 @@ def farming_contract_module():
                 and self.data.ledger[(params.farm_id, sp.sender)].amount > 0
             ):
                 harvest_rewards(sp.record(farm_id=params.farm_id, user=sp.sender))
+            else:
+                elasped_time = sp.nat(0)
+                if sp.now >= self.data.farms[params.farm_id].end_time:
+                    elasped_time = sp.as_nat(
+                        self.data.farms[params.farm_id].end_time
+                        - self.data.farms[params.farm_id].last_reward_time
+                    )
+                    self.data.farms[params.farm_id].last_reward_time = self.data.farms[
+                        params.farm_id
+                    ].end_time
+                else:
+                    elasped_time = sp.as_nat(
+                        sp.now - self.data.farms[params.farm_id].last_reward_time
+                    )
+                    self.data.farms[params.farm_id].last_reward_time = sp.now
+                sp.trace(("Elapsed Time", elasped_time))
+                if (
+                    elasped_time > 0
+                    and self.data.farms[params.farm_id].pool_balance > 0
+                ):
+                    reward_accured = (
+                        elasped_time * self.data.farms[params.farm_id].reward_per_second
+                    )
+                    self.data.farms[params.farm_id].acc_reward_per_share += (
+                        reward_accured * DECIMAL
+                    ) / self.data.farms[params.farm_id].pool_balance
+                    sp.trace(("Reward Accured", reward_accured))
+                    sp.trace(
+                        (
+                            "Acc_Reward_Per_Share",
+                            self.data.farms[params.farm_id].acc_reward_per_share,
+                        )
+                    )
             with sp.match(farm.pool_token.token_type):
                 with sp.case.fa12 as data:
                     assert data == ()
@@ -343,7 +362,11 @@ def farming_contract_module():
                 ].amount += params.token_amount
             else:
                 self.data.ledger[(params.farm_id, sp.sender)] = sp.record(
-                    amount=params.token_amount, reward_debt=0, lock_end_time=sp.now
+                    amount=params.token_amount,
+                    reward_debt=self.data.farms[params.farm_id].acc_reward_per_share
+                    * params.token_amount
+                    / DECIMAL,
+                    lock_end_time=sp.now,
                 )
             sp.trace(
                 (
@@ -452,6 +475,42 @@ def farming_contract_module():
                 ),
                 tag="TokensWithdrawn",
             )
+
+        @sp.entrypoint
+        def endFarm(self, farm_id):
+            sp.cast(farm_id, sp.nat)
+            self._isAdmin()
+            assert self.data.farms.contains(farm_id), "FarmNotFound"
+            farm = self.data.farms[farm_id]
+            assert farm.owner == sp.sender, "NotOwner"
+            assert farm.pool_balance == 0, "PoolBalanceNotZero"
+            with sp.match(farm.pool_token.token_type):
+                with sp.case.fa12 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.reward_token.address,
+                        token_amount=sp.as_nat(
+                            self.data.farms[farm_id].reward_supply
+                            - self.data.farms[farm_id].reward_paid
+                        ),
+                        from_address=sp.self_address(),
+                        to_address=sp.sender,
+                    )
+                    transfer_fa12_token(trasfer_params)
+                with sp.case.fa2 as data:
+                    assert data == ()
+                    trasfer_params = sp.record(
+                        token_address=farm.reward_token.address,
+                        token_id=farm.pool_token.token_id,
+                        token_amount=sp.as_nat(
+                            self.data.farms[farm_id].reward_supply
+                            - self.data.farms[farm_id].reward_paid
+                        ),
+                        from_address=sp.self_address(),
+                        to_address=sp.sender,
+                    )
+                    transfer_fa2_token(trasfer_params)
+            sp.emit(sp.record(farm_id=farm_id), tag="FarmEnded")
 
         # Get the farm data
         @sp.onchain_view()
